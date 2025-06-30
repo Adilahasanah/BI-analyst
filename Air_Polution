@@ -1,0 +1,158 @@
+// === Batas Wilayah Jawa ===
+var jawaProvinces = ee.FeatureCollection("FAO/GAUL_SIMPLIFIED_500m/2015/level1")
+  .filter(ee.Filter.inList('ADM1_NAME', [
+    'Banten', 'DKI Jakarta', 'Jawa Barat', 'Jawa Tengah', 'DI Yogyakarta', 'Jawa Timur'
+]));
+
+Map.centerObject(jawaProvinces, 6);
+
+// === Judul UI ===
+Map.add(ui.Label('Air Quality for Jawa Province', {
+  fontWeight: 'bold',
+  fontSize: '24px',
+  position: 'top-center'
+}));
+
+// === Koleksi Citra Sentinel-5P ===
+var NO2 = ee.ImageCollection('COPERNICUS/S5P/NRTI/L3_NO2');
+var HCHO = ee.ImageCollection('COPERNICUS/S5P/NRTI/L3_HCHO');
+var SO2 = ee.ImageCollection('COPERNICUS/S5P/NRTI/L3_SO2');
+var CO = ee.ImageCollection('COPERNICUS/S5P/NRTI/L3_CO');
+var O3 = ee.ImageCollection('COPERNICUS/S5P/NRTI/L3_O3');
+var AI = ee.ImageCollection('COPERNICUS/S5P/NRTI/L3_AER_AI');
+var CLOUD = ee.ImageCollection('COPERNICUS/S5P/NRTI/L3_CLOUD');
+
+// === Parameter Visualisasi ===
+var NO2_vis = {
+  min: 0,
+  max: 0.0002,
+  palette: ['black', 'blue', 'purple', 'cyan', 'green', 'yellow', 'red'],
+  opacity: 0.8
+};
+
+var HCHO_vis = {
+  min: 0,
+  max: 0.00015,
+  palette: ['black', 'purple', 'blue', 'green', 'yellow', 'orange', 'red'],
+  opacity: 0.8
+};
+
+var SO2_vis = {
+  min: 0,
+  max: 0.0005,
+  palette: ['black', 'blue', 'purple', 'green', 'yellow', 'red'],
+  opacity: 0.8
+};
+
+var CO_vis = {
+  min: 0,
+  max: 0.05,
+  palette: ['black', 'blue', 'green', 'yellow', 'orange', 'red'],
+  opacity: 0.8
+};
+
+var O3_vis = {
+  min: 0,
+  max: 0.15,
+  palette: ['black', 'blue', 'green', 'yellow', 'red'],
+  opacity: 0.8
+};
+
+var AI_vis = {
+  min: 0,
+  max: 2,
+  palette: ['white', 'blue', 'green', 'yellow', 'orange', 'red', 'black'],
+  opacity: 0.8
+};
+
+var cloud_vis = {
+  min: 0,
+  max: 1,
+  palette: ['white', 'lightblue', 'blue'],
+  opacity: 0.6
+};
+
+// === UI Layer Toggles ===
+var NO2_toggle = ui.Checkbox('NO2', true);
+var HCHO_toggle = ui.Checkbox('HCHO', true);
+var SO2_toggle = ui.Checkbox('SO2', true);
+var CO_toggle = ui.Checkbox('CO', true);
+var O3_toggle = ui.Checkbox('O3', true);
+var AI_toggle = ui.Checkbox('Aerosol Index', false);
+var cloud_toggle = ui.Checkbox('Cloud Fraction', false);
+
+var layer_toggles = ui.Panel([
+  NO2_toggle, HCHO_toggle, SO2_toggle, CO_toggle,
+  O3_toggle, AI_toggle, cloud_toggle
+], ui.Panel.Layout.flow('vertical'));
+
+Map.add(layer_toggles);
+
+// === Fungsi Update Peta ===
+function updateMap(){
+  var selected_date = ee.Date(date_slider.getValue()[0]);
+  var start_date = selected_date.advance(-3, 'day');
+  var end_date = selected_date.advance(3, 'day');
+
+  var NO2_image = NO2.filterDate(start_date, end_date)
+    .select('tropospheric_NO2_column_number_density')
+    .mean()
+    .clip(jawaProvinces);
+
+  var HCHO_image = HCHO.filterDate(start_date, end_date)
+    .select('tropospheric_HCHO_column_number_density')
+    .mean()
+    .clip(jawaProvinces);
+
+  var SO2_image = SO2.filterDate(start_date, end_date)
+    .select('SO2_column_number_density')
+    .mean()
+    .clip(jawaProvinces);
+
+  var CO_image = CO.filterDate(start_date, end_date)
+    .select('CO_column_number_density')
+    .mean()
+    .clip(jawaProvinces);
+
+  var O3_image = O3.filterDate(start_date, end_date)
+    .select('O3_column_number_density')
+    .mean()
+    .clip(jawaProvinces);
+
+  var AI_image = AI.filterDate(start_date, end_date)
+    .select('absorbing_aerosol_index')
+    .mean()
+    .clip(jawaProvinces);
+
+  var cloud_image = CLOUD.filterDate(start_date, end_date)
+    .select('cloud_fraction')
+    .mean()
+    .clip(jawaProvinces);
+
+  Map.layers().reset();
+
+  if (NO2_toggle.getValue()) Map.addLayer(NO2_image, NO2_vis, 'NO2');
+  if (HCHO_toggle.getValue()) Map.addLayer(HCHO_image, HCHO_vis, 'HCHO');
+  if (SO2_toggle.getValue()) Map.addLayer(SO2_image, SO2_vis, 'SO2');
+  if (CO_toggle.getValue()) Map.addLayer(CO_image, CO_vis, 'CO');
+  if (O3_toggle.getValue()) Map.addLayer(O3_image, O3_vis, 'O3');
+  if (AI_toggle.getValue()) Map.addLayer(AI_image, AI_vis, 'Aerosol Index');
+  if (cloud_toggle.getValue()) Map.addLayer(cloud_image, cloud_vis, 'Cloud Fraction');
+
+  Map.addLayer(jawaProvinces, {color: 'black'}, 'Provinsi Jawa', true);
+}
+
+// === Slider Waktu ===
+var date_slider = ui.DateSlider({
+  start: '2018-07-01',
+  end: new Date().getTime(),
+  period: 7,
+  onChange: updateMap,
+  value: new Date().getTime(),
+  style: {width: '300px', padding: '10px', position: 'bottom-right'}
+});
+
+Map.add(date_slider);
+
+// === Inisialisasi ===
+updateMap();
